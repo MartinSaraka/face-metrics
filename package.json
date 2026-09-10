@@ -1,0 +1,47 @@
+{
+  "name": "@becometen/face-metrics",
+  "version": "0.1.0",
+  "description": "Pure, dependency-free facial-geometry metrics over MediaPipe's 478-point face mesh: face shape, symmetry, golden ratio, canthal tilt, hunter eyes, jawline, facial thirds/fifths, eye shape, pupillary distance. Roll-corrected, pose-gated, never throws.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "src", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "mediapipe",
+    "face-mesh",
+    "face-landmarks",
+    "facial-analysis",
+    "face-shape",
+    "canthal-tilt",
+    "golden-ratio",
+    "facial-symmetry",
+    "pupillary-distance",
+    "looksmaxxing"
+  ],
+  "author": "Appinara s. r. o. (https://becometen.com)",
+  "license": "MIT",
+  "homepage": "https://becometen.com/tools",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MartinSaraka/face-metrics.git"
+  },
+  "bugs": {
+    "url": "https://github.com/MartinSaraka/face-metrics/issues"
+  },
+  "sideEffects": false,
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "vitest": "^3.2.0"
+  }
+}
