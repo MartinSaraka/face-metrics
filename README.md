@@ -10,6 +10,8 @@ This is the exact code behind the free on-device tools at
 [becometen.com/tools](https://becometen.com/tools). Extracted and MIT-licensed so
 anyone can audit how the numbers are produced or reuse them.
 
+**Live demo:** [martinsaraka.github.io/face-metrics](https://martinsaraka.github.io/face-metrics/) — pick a photo, get all nine metrics in your browser.
+
 ## Install
 
 ```sh
