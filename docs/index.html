@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>face-metrics demo — facial geometry from MediaPipe landmarks, in your browser</title>
+<meta name="description" content="Live demo of @becometen/face-metrics: face shape, symmetry, golden ratio, canthal tilt, jawline, facial thirds and fifths, eye shape and pupillary distance computed on-device from MediaPipe's 478-point face mesh. No upload.">
+<link rel="canonical" href="https://martinsaraka.github.io/face-metrics/">
+<meta property="og:title" content="face-metrics demo — on-device facial geometry">
+<meta property="og:description" content="Pick a photo, get nine facial-geometry metrics computed in your browser. Nothing is uploaded.">
+<style>
+  :root { color-scheme: light dark; --ink:#1b1917; --paper:#faf8f5; --clay:#b5532f; --line:#d9d3cb; }
+  @media (prefers-color-scheme: dark) { :root { --ink:#efe9e1; --paper:#15130f; --line:#3a352f; } }
+  * { box-sizing: border-box; }
+  body { margin:0; font: 16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color:var(--ink); background:var(--paper); }
+  main { max-width: 900px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 1.75rem; margin: 0 0 8px; }
+  p.lead { margin: 0 0 24px; opacity:.8; }
+  .row { display:flex; gap:24px; flex-wrap:wrap; }
+  .col { flex:1 1 320px; min-width:0; }
+  canvas { max-width:100%; border:1px solid var(--line); border-radius:12px; display:block; }
+  label.pick { display:inline-block; padding:12px 20px; border-radius:999px; background:var(--clay); color:#fff; font-weight:600; cursor:pointer; }
+  input[type=file] { display:none; }
+  #status { margin:12px 0; font-size:.9rem; opacity:.8; }
+  table { width:100%; border-collapse:collapse; font-size:.95rem; }
+  th, td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { font-weight:600; }
+  td.v { font-variant-numeric: tabular-nums; }
+  a { color: var(--clay); }
+  .foot { margin-top:32px; font-size:.9rem; opacity:.8; }
+  .refused { opacity:.6; }
+</style>
+</head>
+<body>
+<main>
+  <h1>face-metrics demo</h1>
+  <p class="lead">Nine facial-geometry metrics computed in your browser from MediaPipe's 478-point face mesh, using
+    <a href="https://github.com/MartinSaraka/face-metrics">@becometen/face-metrics</a> (MIT).
+    The photo never leaves this page. Use a frontal, well-lit photo; metrics refuse when the head is turned.</p>
+
+  <div class="row">
+    <div class="col">
+      <label class="pick">Choose a photo <input id="file" type="file" accept="image/*"></label>
+      <div id="status">Loading the face landmarker…</div>
+      <canvas id="cv" width="480" height="640" hidden></canvas>
+    </div>
+    <div class="col">
+      <table id="out" hidden>
+        <thead><tr><th>Metric</th><th>Result</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <p class="foot">Each metric has a polished, explained version at
+    <a href="https://becometen.com/tools">becometen.com/tools</a>, which runs this same code on-device.
+    Geometric estimates only, not medical advice.</p>
+</main>
+
+<script type="module">
+import { FaceLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/vision_bundle.mjs";
+import { measure, TOOL_METRICS } from "./lib/index.js";
+
+const status = document.getElementById("status");
+const cv = document.getElementById("cv");
+const ctx = cv.getContext("2d");
+const out = document.getElementById("out");
+const tbody = out.querySelector("tbody");
+
+const TOOL_URL = {
+  "face-shape": "https://becometen.com/tools/face-shape",
+  "face-symmetry": "https://becometen.com/tools/face-symmetry",
+  "golden-ratio": "https://becometen.com/tools/golden-ratio",
+  "canthal-tilt": "https://becometen.com/tools/canthal-tilt",
+  "hunter-eyes": "https://becometen.com/tools/hunter-eyes",
+  "jawline-score": "https://becometen.com/tools/jawline-score",
+  "facial-ratios": "https://becometen.com/tools/facial-ratios",
+  "eye-shape": "https://becometen.com/tools/eye-shape",
+  "pupillary-distance": "https://becometen.com/tools/pupillary-distance",
+};
+
+const f1 = (n) => (Math.round(n * 10) / 10).toString();
+function describe(metric, v) {
+  switch (metric) {
+    case "face-shape": return `${v.shape} (match ${Math.round(v.match * 100)}%, runner-up ${v.runnerUp})`;
+    case "face-symmetry": return `${Math.round(v.score)}/100 — eyes ${Math.round(v.parts.eyes)}, nose ${Math.round(v.parts.nose)}, mouth ${Math.round(v.parts.mouth)}, jaw ${Math.round(v.parts.jaw)}`;
+    case "golden-ratio": return `${Math.round(v.score)}/100 across ${v.ratios.length} ratios`;
+    case "canthal-tilt": return `${f1(v.mean)}° mean (L ${f1(v.left)}°, R ${f1(v.right)}°)`;
+    case "hunter-eyes": return `${Math.round(v.score)}/100 — eye aspect ${f1(v.ar)}, brow gap ${f1(v.browGap)}, tilt ${f1(v.tilt)}°`;
+    case "jawline-score": return `${Math.round(v.score)}/100 — gonial ${f1(v.gonialMean)}°, chin taper ${f1(v.chinTaper)}`;
+    case "facial-ratios": return `thirds ${v.thirds.map(f1).join(" / ")}, fWHR ${f1(v.fwhr)}`;
+    case "eye-shape": return v.shape;
+    case "pupillary-distance": return v.mm != null ? `≈ ${Math.round(v.mm)} mm` : JSON.stringify(v);
+    default: return JSON.stringify(v);
+  }
+}
+
+let landmarker;
+try {
+  const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm");
+  const make = (delegate) => FaceLandmarker.createFromOptions(vision, {
+    baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task", delegate },
+    runningMode: "IMAGE", numFaces: 1,
+  });
+  try { landmarker = await make("GPU"); } catch { landmarker = await make("CPU"); }
+  status.textContent = "Ready. Pick a photo.";
+} catch (e) {
+  status.textContent = "Could not load the face landmarker: " + e.message;
+}
+
+document.getElementById("file").addEventListener("change", async (ev) => {
+  const file = ev.target.files[0];
+  if (!file || !landmarker) return;
+  const bmp = await createImageBitmap(file);
+  const scale = Math.min(1, 720 / Math.max(bmp.width, bmp.height));
+  cv.width = Math.round(bmp.width * scale);
+  cv.height = Math.round(bmp.height * scale);
+  ctx.drawImage(bmp, 0, 0, cv.width, cv.height);
+  cv.hidden = false;
+  status.textContent = "Detecting…";
+  const res = landmarker.detect(cv);
+  const points = res.faceLandmarks && res.faceLandmarks[0];
+  if (!points) { status.textContent = "No face found. Try a frontal photo."; out.hidden = true; return; }
+
+  ctx.fillStyle = "rgba(181,83,47,.9)";
+  for (const p of points) ctx.fillRect(p.x * cv.width - 1, p.y * cv.height - 1, 2, 2);
+
+  const aspect = cv.width / cv.height;
+  tbody.innerHTML = "";
+  for (const metric of TOOL_METRICS) {
+    const r = measure(metric, points, aspect, { w: cv.width, h: cv.height });
+    const tr = document.createElement("tr");
+    const name = document.createElement("td"); name.textContent = metric;
+    const val = document.createElement("td"); val.className = "v";
+    if (r.gate.ok && r.value) val.textContent = describe(metric, r.value) + (r.gate.confidence === "medium" ? " (medium confidence)" : "");
+    else { val.textContent = "refused: " + r.gate.reason; tr.className = "refused"; }
+    const link = document.createElement("td");
+    const a = document.createElement("a"); a.href = TOOL_URL[metric]; a.textContent = "explained →"; link.appendChild(a);
+    tr.append(name, val, link); tbody.appendChild(tr);
+  }
+  out.hidden = false;
+  status.textContent = `${points.length} landmarks · all computed locally`;
+});
+</script>
+</body>
+</html>
